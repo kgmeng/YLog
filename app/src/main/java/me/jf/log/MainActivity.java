@@ -25,14 +25,16 @@ public class MainActivity extends AppCompatActivity {
                 .setLogDir("yylog")
                 .setCleanDayInterval(1)
                 .setLogLevel(LogLevel.i)
-                .setPrintType(Config.PrintType.File);
+                .setPrintType(Config.PrintType.File)
+                .setLogFilePrefix("jflog")
+                .setMaxMegabyte(2);
         YLog.init(new Config(builder));
 
         findViewById(R.id.btn_add).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 String str = getResources().getString(R.string.test_log);
-                for (int i = 0; i < 1; i++) {
+                for (int i = 0; i < 100; i++) {
                     YLog.i(this, "hello:" + i + ",str=" + str);
                 }
             }

@@ -9,6 +9,7 @@ import android.util.Log;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.Locale;
@@ -19,6 +20,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import me.jf.log.core.Config;
 import me.jf.log.core.LogLevel;
 import me.jf.log.core.format.Formater;
 
@@ -30,8 +32,6 @@ public class FilePrinter implements IPrinter {
 
     private static final String BAK_EXT = ".bak";
 
-    private static final int MAX_FILE_SIZE = 2;// M bytes
-
     private static final int MAX_COUNT = 1;
 
     /** Back file num limit, when this is exceeded, will delete older logs. */
@@ -39,10 +39,12 @@ public class FilePrinter implements IPrinter {
 
     private Formater mFormater;
     private Worker mWorker;
+    private Config mConfig;
 
-    public FilePrinter(final String folderName) {
-        mFormater = new Formater();
-        mWorker = new Worker(folderName);
+    public FilePrinter(final Config config) {
+        mFormater   = new Formater();
+        mWorker     = new Worker(config);
+        mConfig     = config;
     }
 
     private boolean availableMemInSDcard() {
@@ -72,12 +74,12 @@ public class FilePrinter implements IPrinter {
         ThreadLocal<SimpleDateFormat> formater = new ThreadLocal<SimpleDateFormat>() {
             @Override
             protected SimpleDateFormat initialValue() {
-                return new SimpleDateFormat("yyyy_MM_dd_HH", Locale.US);
+                return new SimpleDateFormat("yyyy-MM-dd-HH", Locale.US);
             }
         };
 
         public String create() {
-            return formater.get().format(new Date(System.currentTimeMillis()));
+            return mConfig.logFilePrefix + formater.get().format(new Date(System.currentTimeMillis()));
         }
     }
 
@@ -107,10 +109,12 @@ public class FilePrinter implements IPrinter {
         private CleanTask mCleanTask;
         private String mFolderName = "YLogDefault"; // default folder name
         private String mFileName   = "";
+        private Config mConfig;
 
-        public Worker(final String folderName) {
+        public Worker(final Config config) {
+            mConfig            = config;
             mFileNameGenerator = new FileNameGenerator();
-            mFolderName        = folderName;
+            mFolderName        = config.logDir;
             mCleanTask         = new CleanTask(getLogFilePath());
         }
 
@@ -122,6 +126,30 @@ public class FilePrinter implements IPrinter {
                     .toString();
         }
 
+        private int[] getTime(long timeMillis) {
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTimeInMillis(timeMillis);
+            int time[] = new int[5];
+            time[0] = calendar.get(Calendar.YEAR);
+            time[1] = calendar.get(Calendar.MONTH) + 1;
+            time[2] = calendar.get(Calendar.DAY_OF_MONTH);
+            time[3] = calendar.get(Calendar.HOUR_OF_DAY);
+            time[4] = calendar.get(Calendar.MINUTE);
+            return time;
+        }
+
+        public void updateFileName(File file) {
+            int[] currentTime = getTime(System.currentTimeMillis());
+            int[] fileModTime = getTime(file.lastModified());
+
+            boolean needChange = false;
+            for (int i = 0; i < 5; i++) {
+                needChange |= (currentTime[i] == fileModTime[i]);
+            }
+            needChange |= currentTime[4] > 0? ((currentTime[4] / 5) % 10 == 0) : true;
+
+        }
+
 
         public void print(final LogLevel invokeLevel, final String tag, final String msg, final Throwable throwable) {
             mExecutorService.execute(new Runnable() {
@@ -130,6 +158,7 @@ public class FilePrinter implements IPrinter {
                     if (TextUtils.isEmpty(mFileName)) {
                         mFileName = mFileNameGenerator.create();
                     }
+
                     File file = new File(getLogFilePath() + mFileName);
                     if (!file.exists()) {
                         File parent = file.getParentFile();
@@ -137,8 +166,10 @@ public class FilePrinter implements IPrinter {
                             parent.mkdirs();
                         }
                     } else {
+
+
                         long fileSize = (file.length() >>> 20);// convert to M bytes
-                        if (fileSize > MAX_FILE_SIZE) {
+                        if (fileSize >= mConfig.maxMegabyte) {
 
                             File fileNameTo = new File(getLogFilePath() + file.getName() + BAK_EXT);
                             file.renameTo(fileNameTo);

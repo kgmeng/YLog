@@ -20,7 +20,7 @@ class LogImpl implements ILog {
         mConfig  = config;
         mLevel   = mConfig.logLevel;
         mPrinter = mConfig.printType.equals(Config.PrintType.File)
-                ? new FilePrinter(mConfig.logDir)
+                ? new FilePrinter(mConfig)
                 : new LogCatPrinter();
     }
 

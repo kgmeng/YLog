@@ -1,5 +1,6 @@
 package me.jf.log.core.format;
 
+import android.os.Looper;
 import android.os.Process;
 import android.util.Log;
 
@@ -70,7 +71,7 @@ public class Formater implements IFormater {
         sb.append(")");
         //thread
         sb.append("(T:");
-        sb.append(Thread.currentThread().getId());
+        sb.append(getCurrentThreadName());
         sb.append(")");
 
         sb.append(levelTag.get(level));
@@ -89,5 +90,24 @@ public class Formater implements IFormater {
         sb.append(getThrowableMsg(throwable));
 
         return sb.toString();
+    }
+
+    private String getCurrentThreadName(){
+        Thread mainThread = null;
+        Looper looper = Looper.getMainLooper();
+        if (looper != null) {
+            mainThread = looper.getThread();
+        }
+
+        Thread current = Thread.currentThread();
+        if (mainThread == current) {
+            return "main";
+        } else {
+            if (current.getName() == null || current.getName().length() == 0) {
+                return String.valueOf(current.getId());
+            } else {
+                return current.getName();
+            }
+        }
     }
 }
